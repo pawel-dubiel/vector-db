@@ -46,6 +46,9 @@ mod index;
 mod storage;
 mod validation;
 
+pub mod api;
+pub mod config;
+
 pub use crate::database::VectorDatabase;
 pub use crate::embedding::{Embedding, Metadata, VectorId};
 pub use crate::errors::VectorDbError;
