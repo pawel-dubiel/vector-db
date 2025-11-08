@@ -112,6 +112,10 @@ impl VectorDatabase {
         self.collections.get(collection)?.embedding(id)
     }
 
+    pub fn collections(&self) -> impl Iterator<Item = (&String, &Collection)> {
+        self.collections.iter()
+    }
+
     fn apply_and_persist<F>(&mut self, name: &str, action: F) -> Result<(), VectorDbError>
     where
         F: FnOnce(&mut Collection) -> Result<(), VectorDbError>,
