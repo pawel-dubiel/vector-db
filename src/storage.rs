@@ -43,6 +43,58 @@ pub(crate) fn persist_collection(
     Ok(())
 }
 
+pub(crate) fn delete_collection_files(root: &Path, name: &str) -> Result<(), VectorDbError> {
+    validate_collection_name(name)?;
+    let main_path = collection_path(root, name);
+    if !main_path.exists() {
+        return Err(VectorDbError::CorruptedStorage(format!(
+            "collection file '{}' missing during delete",
+            main_path.display()
+        )));
+    }
+    fs::remove_file(&main_path)?;
+
+    let wal = wal_path(root, name);
+    if wal.exists() {
+        fs::remove_file(wal)?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn rename_collection_files(
+    root: &Path,
+    from: &str,
+    to: &str,
+) -> Result<(), VectorDbError> {
+    validate_collection_name(from)?;
+    validate_collection_name(to)?;
+    let from_path = collection_path(root, from);
+    if !from_path.exists() {
+        return Err(VectorDbError::CorruptedStorage(format!(
+            "collection file '{}' missing during rename",
+            from_path.display()
+        )));
+    }
+    let to_path = collection_path(root, to);
+    if to_path.exists() {
+        return Err(VectorDbError::CollectionAlreadyExists(to.to_string()));
+    }
+
+    fs::rename(&from_path, &to_path)?;
+
+    let from_wal = wal_path(root, from);
+    if from_wal.exists() {
+        let to_wal = wal_path(root, to);
+        if to_wal.exists() {
+            return Err(VectorDbError::CollectionAlreadyExists(to.to_string()));
+        }
+        fs::rename(from_wal, to_wal)?;
+    }
+
+    Ok(())
+}
+
 pub(crate) fn load_collection(name: &str, path: &Path) -> Result<Collection, VectorDbError> {
     validate_collection_name(name)?;
     let bytes = fs::read(path)?;

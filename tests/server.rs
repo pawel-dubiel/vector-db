@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    body::Body,
+    body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use serde_json::{Value, json};
@@ -25,7 +25,7 @@ fn test_app(auth_token: Option<&str>) -> (Router, TempDir) {
 }
 
 async fn read_body(response: axum::response::Response) -> Value {
-    let bytes = hyper::body::to_bytes(response.into_body())
+    let bytes = to_bytes(response.into_body(), usize::MAX)
         .await
         .expect("body bytes");
     serde_json::from_slice(&bytes).expect("json response")

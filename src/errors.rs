@@ -7,6 +7,7 @@ use crate::embedding::VectorId;
 pub enum VectorDbError {
     CollectionAlreadyExists(String),
     CollectionNotFound(String),
+    CollectionNotEmpty(String),
     InvalidCollectionName(String),
     InvalidDimension,
     DimensionMismatch { expected: usize, found: usize },
@@ -29,6 +30,9 @@ impl fmt::Display for VectorDbError {
             }
             VectorDbError::CollectionNotFound(name) => {
                 write!(f, "collection '{name}' not found")
+            }
+            VectorDbError::CollectionNotEmpty(name) => {
+                write!(f, "collection '{name}' is not empty")
             }
             VectorDbError::InvalidCollectionName(name) => {
                 write!(f, "collection name '{name}' is not allowed")

@@ -59,6 +59,56 @@ paths:
                 $ref: '#/components/schemas/CollectionResponse'
         '404':
           $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update collection settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionUpdateRequest'
+      responses:
+        '200':
+          description: Collection updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete collection
+      responses:
+        '204':
+          description: Collection deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /collections/{name}/rename:
+    parameters:
+      - $ref: '#/components/parameters/CollectionName'
+    post:
+      summary: Rename a collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionRenameRequest'
+      responses:
+        '200':
+          description: Collection renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /collections/{name}/vectors:
     parameters:
       - $ref: '#/components/parameters/CollectionName'
@@ -199,6 +249,19 @@ components:
         vectors:
           type: integer
           minimum: 0
+    CollectionRenameRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    CollectionUpdateRequest:
+      type: object
+      required: [dimension]
+      properties:
+        dimension:
+          type: integer
+          minimum: 1
     CollectionsResponse:
       type: object
       required: [collections]

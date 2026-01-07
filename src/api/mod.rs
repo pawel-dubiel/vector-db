@@ -9,16 +9,16 @@ use axum::{
     http::StatusCode,
     middleware,
     response::IntoResponse,
-    routing::{delete, get, post, put},
+    routing::{get, post},
 };
 use tokio::sync::RwLock;
-use tower_http::trace::TraceLayer;
 
 use crate::{VectorDatabase, errors::VectorDbError};
 
 use self::models::{
-    CollectionCreateRequest, CollectionResponse, CollectionsResponse, EmbeddingRequest,
-    EmbeddingResponse, ErrorResponse, SearchRequest, SearchResponse,
+    CollectionCreateRequest, CollectionRenameRequest, CollectionResponse, CollectionUpdateRequest,
+    CollectionsResponse, EmbeddingRequest, EmbeddingResponse, ErrorResponse, SearchRequest,
+    SearchResponse,
 };
 use self::responses::map_error;
 
@@ -36,7 +36,13 @@ pub fn router(state: SharedState) -> Router {
             "/collections",
             post(create_collection).get(list_collections),
         )
-        .route("/collections/:name", get(get_collection))
+        .route(
+            "/collections/:name",
+            get(get_collection)
+                .put(update_collection)
+                .delete(delete_collection),
+        )
+        .route("/collections/:name/rename", post(rename_collection))
         .route("/collections/:name/vectors", post(insert_embedding))
         .route(
             "/collections/:name/vectors/:id",
@@ -57,17 +63,16 @@ pub fn router(state: SharedState) -> Router {
         .route("/healthz", get(health))
         .merge(protected_routes)
         .with_state(state)
-        .layer(TraceLayer::new_for_http())
 }
 
 async fn health() -> &'static str {
     "ok"
 }
 
-async fn require_auth<B>(
+async fn require_auth(
     State(state): State<SharedState>,
-    mut request: axum::http::Request<B>,
-    next: axum::middleware::Next<B>,
+    request: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     if let Some(expected) = &state.auth_token {
         let unauthorized = || {
@@ -121,6 +126,44 @@ async fn get_collection(
         .collection(&name)
         .ok_or_else(|| map_error(VectorDbError::CollectionNotFound(name.clone())))?;
     Ok((StatusCode::OK, Json(CollectionResponse::from(collection))))
+}
+
+async fn update_collection(
+    Path(name): Path<String>,
+    State(state): State<SharedState>,
+    Json(payload): Json<CollectionUpdateRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let mut db = state.db.write().await;
+    db.update_collection_dimension(&name, payload.dimension)
+        .map_err(map_error)?;
+    let collection = db
+        .collection(&name)
+        .ok_or_else(|| map_error(VectorDbError::CollectionNotFound(name.clone())))?;
+    Ok((StatusCode::OK, Json(CollectionResponse::from(collection))))
+}
+
+async fn rename_collection(
+    Path(name): Path<String>,
+    State(state): State<SharedState>,
+    Json(payload): Json<CollectionRenameRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let mut db = state.db.write().await;
+    let CollectionRenameRequest { name: new_name } = payload;
+    db.rename_collection(&name, new_name.clone())
+        .map_err(map_error)?;
+    let collection = db
+        .collection(&new_name)
+        .ok_or_else(|| map_error(VectorDbError::CollectionNotFound(new_name.clone())))?;
+    Ok((StatusCode::OK, Json(CollectionResponse::from(collection))))
+}
+
+async fn delete_collection(
+    Path(name): Path<String>,
+    State(state): State<SharedState>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let mut db = state.db.write().await;
+    db.delete_collection(&name).map_err(map_error)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn insert_embedding(

@@ -41,10 +41,23 @@ curl -X POST http://localhost:8080/collections/documents/vectors \
   -H 'Content-Type: application/json' \
   -d '{"id":1,"vector":[0.0,1.0,0.5],"metadata":{"title":"Doc A"}}'
 
+# Update collection dimension
+curl -X PUT http://localhost:8080/collections/documents \
+  -H 'Content-Type: application/json' \
+  -d '{"dimension":3}'
+
+# Rename a collection
+curl -X POST http://localhost:8080/collections/documents/rename \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"docs"}'
+
 # Perform a search
-curl -X POST http://localhost:8080/collections/documents/search \
+curl -X POST http://localhost:8080/collections/docs/search \
   -H 'Content-Type: application/json' \
   -d '{"query":[0.0,1.0,0.4],"k":1}'
+
+# Delete a collection
+curl -X DELETE http://localhost:8080/collections/docs
 ```
 
 When authentication is enabled set `Authorization: Bearer <token>` on modifying requests.

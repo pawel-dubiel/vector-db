@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     fmt().with_env_filter(env_filter).init();
 
-    info!("opening database", path = ?config.storage);
+    info!(path = ?config.storage, "opening database");
     let db = match VectorDatabase::open(&config.storage) {
         Ok(db) => db,
         Err(err) => {

@@ -10,6 +10,16 @@ pub struct CollectionCreateRequest {
     pub dimension: usize,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CollectionRenameRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CollectionUpdateRequest {
+    pub dimension: usize,
+}
+
 #[derive(Debug, Serialize)]
 pub struct CollectionResponse {
     pub name: String,
