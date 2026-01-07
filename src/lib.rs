@@ -309,4 +309,55 @@ mod tests {
         drop(db);
         cleanup_dir(dir);
     }
+
+    #[test]
+    fn deleting_collection_removes_it_from_disk() {
+        let dir = temp_dir("delete_collection");
+        {
+            let mut db = VectorDatabase::open(&dir).unwrap();
+            db.create_collection("docs", 2).unwrap();
+            db.delete_collection("docs").unwrap();
+            assert!(db.collection("docs").is_none());
+            assert!(!collection_path(&dir, "docs").exists());
+        }
+
+        let db = VectorDatabase::open(&dir).unwrap();
+        assert!(db.collection("docs").is_none());
+        drop(db);
+        cleanup_dir(dir);
+    }
+
+    #[test]
+    fn renaming_collection_updates_storage_and_registry() {
+        let dir = temp_dir("rename_collection");
+        {
+            let mut db = VectorDatabase::open(&dir).unwrap();
+            db.create_collection("docs", 2).unwrap();
+            db.insert("docs", 1, vec![0.1, 0.2]).unwrap();
+            db.rename_collection("docs", "papers").unwrap();
+            assert!(db.collection("docs").is_none());
+            assert!(db.collection("papers").is_some());
+        }
+
+        let db = VectorDatabase::open(&dir).unwrap();
+        assert!(db.collection("docs").is_none());
+        assert!(db.embedding("papers", 1).is_some());
+        drop(db);
+        cleanup_dir(dir);
+    }
+
+    #[test]
+    fn updating_collection_dimension_requires_empty_collection() {
+        let dir = temp_dir("update_collection");
+        let mut db = VectorDatabase::open(&dir).unwrap();
+        db.create_collection("docs", 2).unwrap();
+        db.update_collection_dimension("docs", 3).unwrap();
+        assert_eq!(db.collection("docs").unwrap().dimension(), 3);
+
+        db.insert("docs", 1, vec![0.0, 0.0, 0.0]).unwrap();
+        let err = db.update_collection_dimension("docs", 4).unwrap_err();
+        assert!(matches!(err, VectorDbError::CollectionNotEmpty(_)));
+        drop(db);
+        cleanup_dir(dir);
+    }
 }

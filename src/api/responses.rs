@@ -8,6 +8,7 @@ pub fn map_error(err: VectorDbError) -> (StatusCode, Json<ErrorResponse>) {
     let (status, code) = match &err {
         VectorDbError::CollectionAlreadyExists(_) => (StatusCode::CONFLICT, "collection_exists"),
         VectorDbError::CollectionNotFound(_) => (StatusCode::NOT_FOUND, "collection_not_found"),
+        VectorDbError::CollectionNotEmpty(_) => (StatusCode::BAD_REQUEST, "collection_not_empty"),
         VectorDbError::InvalidCollectionName(_) => {
             (StatusCode::BAD_REQUEST, "invalid_collection_name")
         }

@@ -1,4 +1,5 @@
 use clap::{Parser, ValueEnum};
+use std::fmt;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -48,5 +49,11 @@ impl LogLevel {
             LogLevel::Debug => "debug",
             LogLevel::Trace => "trace",
         }
+    }
+}
+
+impl fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.into_filter())
     }
 }

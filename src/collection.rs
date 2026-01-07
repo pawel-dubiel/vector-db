@@ -16,6 +16,14 @@ impl Collection {
         })
     }
 
+    pub(crate) fn rename(&mut self, name: String) {
+        self.name = name;
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.index.embeddings().is_empty()
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }

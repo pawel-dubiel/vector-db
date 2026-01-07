@@ -3,7 +3,8 @@ use crate::embedding::{Embedding, VectorId};
 use crate::errors::VectorDbError;
 use crate::index::SearchResult;
 use crate::storage::{
-    COLLECTION_EXTENSION, collection_path, load_collection, persist_collection, replay_wal,
+    COLLECTION_EXTENSION, collection_path, delete_collection_files, load_collection,
+    persist_collection, rename_collection_files, replay_wal,
 };
 use crate::validation::validate_collection_name;
 use std::collections::HashMap;
@@ -50,6 +51,62 @@ impl VectorDatabase {
         let collection = Collection::new(name.clone(), dimension)?;
         persist_collection(&collection, &self.storage_root)?;
         self.collections.insert(name, collection);
+        Ok(())
+    }
+
+    pub fn delete_collection(&mut self, name: &str) -> Result<(), VectorDbError> {
+        if !self.collections.contains_key(name) {
+            return Err(VectorDbError::CollectionNotFound(name.to_string()));
+        }
+        delete_collection_files(&self.storage_root, name)?;
+        self.collections.remove(name);
+        Ok(())
+    }
+
+    pub fn rename_collection(
+        &mut self,
+        name: &str,
+        new_name: impl Into<String>,
+    ) -> Result<(), VectorDbError> {
+        let new_name = new_name.into();
+        validate_collection_name(&new_name)?;
+        if !self.collections.contains_key(name) {
+            return Err(VectorDbError::CollectionNotFound(name.to_string()));
+        }
+        if self.collections.contains_key(&new_name) {
+            return Err(VectorDbError::CollectionAlreadyExists(new_name));
+        }
+
+        rename_collection_files(&self.storage_root, name, &new_name)?;
+
+        let mut collection = self
+            .collections
+            .remove(name)
+            .ok_or_else(|| VectorDbError::CollectionNotFound(name.to_string()))?;
+        collection.rename(new_name.clone());
+        self.collections.insert(new_name, collection);
+        Ok(())
+    }
+
+    pub fn update_collection_dimension(
+        &mut self,
+        name: &str,
+        dimension: usize,
+    ) -> Result<(), VectorDbError> {
+        let existing = self
+            .collections
+            .get(name)
+            .ok_or_else(|| VectorDbError::CollectionNotFound(name.to_string()))?;
+        if existing.dimension() == dimension {
+            return Ok(());
+        }
+        if !existing.is_empty() {
+            return Err(VectorDbError::CollectionNotEmpty(name.to_string()));
+        }
+
+        let collection = Collection::new(name.to_string(), dimension)?;
+        persist_collection(&collection, &self.storage_root)?;
+        self.collections.insert(name.to_string(), collection);
         Ok(())
     }
 

@@ -10,6 +10,20 @@ curl -X POST http://localhost:8080/collections \
   -d '{"name":"images","dimension":512}'
 ```
 
+## Updating, Renaming, and Deleting Collections
+
+```bash
+curl -X PUT http://localhost:8080/collections/images \
+  -H 'Content-Type: application/json' \
+  -d '{"dimension":256}'
+
+curl -X POST http://localhost:8080/collections/images/rename \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"pictures"}'
+
+curl -X DELETE http://localhost:8080/collections/pictures
+```
+
 ## Working with Embeddings
 
 ```bash
