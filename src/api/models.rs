@@ -2,12 +2,17 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{VectorDatabase, collection::Collection, embedding::Embedding, index::SearchResult};
+use crate::{
+    VectorDatabase, collection::Collection, distance::DistanceMetric, embedding::Embedding,
+    index::SearchResult,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct CollectionCreateRequest {
     pub name: String,
     pub dimension: usize,
+    #[serde(default)]
+    pub metric: Option<DistanceMetric>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,14 +29,21 @@ pub struct CollectionUpdateRequest {
 pub struct CollectionResponse {
     pub name: String,
     pub dimension: usize,
+    pub metric: DistanceMetric,
     pub vectors: usize,
 }
 
 impl CollectionResponse {
-    pub fn new(name: impl Into<String>, dimension: usize, vectors: usize) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        dimension: usize,
+        metric: DistanceMetric,
+        vectors: usize,
+    ) -> Self {
         Self {
             name: name.into(),
             dimension,
+            metric,
             vectors,
         }
     }
@@ -42,6 +54,7 @@ impl From<&Collection> for CollectionResponse {
         Self::new(
             collection.name(),
             collection.dimension(),
+            collection.metric(),
             collection.embeddings().len(),
         )
     }
@@ -49,7 +62,12 @@ impl From<&Collection> for CollectionResponse {
 
 impl From<(&str, &Collection)> for CollectionResponse {
     fn from((name, collection): (&str, &Collection)) -> Self {
-        Self::new(name, collection.dimension(), collection.embeddings().len())
+        Self::new(
+            name,
+            collection.dimension(),
+            collection.metric(),
+            collection.embeddings().len(),
+        )
     }
 }
 

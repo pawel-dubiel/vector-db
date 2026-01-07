@@ -1,4 +1,5 @@
 use crate::collection::Collection;
+use crate::distance::DistanceMetric;
 use crate::embedding::{Embedding, VectorId};
 use crate::errors::VectorDbError;
 use crate::index::SearchResult;
@@ -43,12 +44,21 @@ impl VectorDatabase {
         name: impl Into<String>,
         dimension: usize,
     ) -> Result<(), VectorDbError> {
+        self.create_collection_with_metric(name, dimension, DistanceMetric::Euclidean)
+    }
+
+    pub fn create_collection_with_metric(
+        &mut self,
+        name: impl Into<String>,
+        dimension: usize,
+        metric: DistanceMetric,
+    ) -> Result<(), VectorDbError> {
         let name = name.into();
         validate_collection_name(&name)?;
         if self.collections.contains_key(&name) {
             return Err(VectorDbError::CollectionAlreadyExists(name));
         }
-        let collection = Collection::new(name.clone(), dimension)?;
+        let collection = Collection::with_metric(name.clone(), dimension, metric)?;
         persist_collection(&collection, &self.storage_root)?;
         self.collections.insert(name, collection);
         Ok(())
@@ -104,7 +114,7 @@ impl VectorDatabase {
             return Err(VectorDbError::CollectionNotEmpty(name.to_string()));
         }
 
-        let collection = Collection::new(name.to_string(), dimension)?;
+        let collection = Collection::with_metric(name.to_string(), dimension, existing.metric())?;
         persist_collection(&collection, &self.storage_root)?;
         self.collections.insert(name.to_string(), collection);
         Ok(())

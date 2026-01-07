@@ -1,4 +1,5 @@
 use crate::collection::Collection;
+use crate::distance::DistanceMetric;
 use crate::embedding::{Embedding, Metadata};
 use crate::errors::VectorDbError;
 use crate::validation::validate_collection_name;
@@ -10,7 +11,7 @@ use std::path::{Path, PathBuf};
 pub(crate) const COLLECTION_EXTENSION: &str = "vdb";
 const WAL_SUFFIX: &str = "wal";
 const FILE_MAGIC: [u8; 4] = *b"VDB1";
-const FILE_VERSION: u16 = 1;
+const FILE_VERSION: u16 = 2;
 
 pub(crate) fn collection_path(root: &Path, name: &str) -> PathBuf {
     let mut path = root.to_path_buf();
@@ -132,6 +133,7 @@ pub(crate) fn encode_collection(collection: &Collection) -> Result<Vec<u8>, Vect
     buffer.write_all(&FILE_MAGIC)?;
     write_u16(&mut buffer, FILE_VERSION)?;
     write_u64(&mut buffer, collection.dimension() as u64)?;
+    write_u8(&mut buffer, collection.metric().to_u8())?;
     write_u64(&mut buffer, collection.embeddings().len() as u64)?;
 
     for embedding in collection.embeddings() {
@@ -152,17 +154,32 @@ pub(crate) fn encode_collection(collection: &Collection) -> Result<Vec<u8>, Vect
 
 pub(crate) fn decode_collection(name: &str, bytes: &[u8]) -> Result<Collection, VectorDbError> {
     let mut cursor = Cursor::new(bytes);
-    validate_file_header(&mut cursor)?;
+    let version = validate_file_header(&mut cursor)?;
 
     let dimension = read_u64(&mut cursor)?;
     let dimension = usize::try_from(dimension)
         .map_err(|_| VectorDbError::CorruptedStorage("dimension does not fit usize".into()))?;
 
+    let metric = match version {
+        1 => DistanceMetric::Euclidean,
+        2 => {
+            let metric_value = read_u8(&mut cursor)?;
+            DistanceMetric::from_u8(metric_value).ok_or_else(|| {
+                VectorDbError::CorruptedStorage(format!("unknown distance metric {metric_value}"))
+            })?
+        }
+        _ => {
+            return Err(VectorDbError::CorruptedStorage(format!(
+                "unsupported file version {version}"
+            )));
+        }
+    };
+
     let entry_count = read_u64(&mut cursor)?;
     let entry_count = usize::try_from(entry_count)
         .map_err(|_| VectorDbError::CorruptedStorage("entry count does not fit usize".into()))?;
 
-    let mut collection = Collection::new(name.to_string(), dimension)?;
+    let mut collection = Collection::with_metric(name.to_string(), dimension, metric)?;
     for _ in 0..entry_count {
         let id = read_u64(&mut cursor)?;
         let vector_len = read_u64(&mut cursor)?;
@@ -220,19 +237,19 @@ fn write_bytes_atomic(path: &Path, bytes: &[u8]) -> Result<(), VectorDbError> {
     }
 }
 
-fn validate_file_header<R: Read>(reader: &mut R) -> Result<(), VectorDbError> {
+fn validate_file_header<R: Read>(reader: &mut R) -> Result<u16, VectorDbError> {
     let mut magic = [0u8; 4];
     reader.read_exact(&mut magic)?;
     if magic != FILE_MAGIC {
         return Err(VectorDbError::CorruptedStorage("invalid file magic".into()));
     }
     let version = read_u16(reader)?;
-    if version != FILE_VERSION {
+    if version > FILE_VERSION {
         return Err(VectorDbError::CorruptedStorage(format!(
             "unsupported file version {version}"
         )));
     }
-    Ok(())
+    Ok(version)
 }
 
 fn write_u16<W: Write>(writer: &mut W, value: u16) -> Result<(), VectorDbError> {
@@ -242,6 +259,11 @@ fn write_u16<W: Write>(writer: &mut W, value: u16) -> Result<(), VectorDbError> 
 
 fn write_u64<W: Write>(writer: &mut W, value: u64) -> Result<(), VectorDbError> {
     writer.write_all(&value.to_le_bytes())?;
+    Ok(())
+}
+
+fn write_u8<W: Write>(writer: &mut W, value: u8) -> Result<(), VectorDbError> {
+    writer.write_all(&[value])?;
     Ok(())
 }
 
@@ -269,6 +291,12 @@ fn read_u64<R: Read>(reader: &mut R) -> Result<u64, VectorDbError> {
     Ok(u64::from_le_bytes(buf))
 }
 
+fn read_u8<R: Read>(reader: &mut R) -> Result<u8, VectorDbError> {
+    let mut buf = [0u8; 1];
+    reader.read_exact(&mut buf)?;
+    Ok(buf[0])
+}
+
 fn read_f32<R: Read>(reader: &mut R) -> Result<f32, VectorDbError> {
     let mut buf = [0u8; 4];
     reader.read_exact(&mut buf)?;
@@ -291,7 +319,8 @@ mod tests {
 
     #[test]
     fn encode_and_decode_round_trip() {
-        let mut collection = Collection::new("docs".into(), 2).unwrap();
+        let mut collection =
+            Collection::with_metric("docs".into(), 2, DistanceMetric::Cosine).unwrap();
         let mut metadata = Metadata::new();
         metadata.insert("title".into(), "Doc".into());
         collection
@@ -302,6 +331,7 @@ mod tests {
         let decoded = decode_collection("docs", &bytes).unwrap();
 
         assert_eq!(decoded.dimension(), 2);
+        assert_eq!(decoded.metric(), DistanceMetric::Cosine);
         assert!(decoded.embedding(1).is_some());
     }
 }

@@ -1,4 +1,4 @@
-use crate::distance::euclidean_distance;
+use crate::distance::DistanceMetric;
 use crate::embedding::{Embedding, Metadata, VectorId};
 use crate::errors::VectorDbError;
 
@@ -12,16 +12,18 @@ pub struct SearchResult<'a> {
 #[derive(Debug, Clone)]
 pub(crate) struct FlatIndex {
     dimension: usize,
+    metric: DistanceMetric,
     entries: Vec<Embedding>,
 }
 
 impl FlatIndex {
-    pub(crate) fn new(dimension: usize) -> Result<Self, VectorDbError> {
+    pub(crate) fn new(dimension: usize, metric: DistanceMetric) -> Result<Self, VectorDbError> {
         if dimension == 0 {
             return Err(VectorDbError::InvalidDimension);
         }
         Ok(Self {
             dimension,
+            metric,
             entries: Vec::new(),
         })
     }
@@ -108,7 +110,7 @@ impl FlatIndex {
             .iter()
             .map(|embedding| SearchResult {
                 id: embedding.id,
-                distance: euclidean_distance(query, &embedding.vector),
+                distance: self.metric.score(query, &embedding.vector),
                 embedding,
             })
             .collect();
@@ -128,6 +130,10 @@ impl FlatIndex {
 
     pub(crate) fn dimension(&self) -> usize {
         self.dimension
+    }
+
+    pub(crate) fn metric(&self) -> DistanceMetric {
+        self.metric
     }
 
     pub(crate) fn embeddings(&self) -> &[Embedding] {

@@ -50,6 +50,7 @@ pub mod api;
 pub mod config;
 
 pub use crate::database::VectorDatabase;
+pub use crate::distance::DistanceMetric;
 pub use crate::embedding::{Embedding, Metadata, VectorId};
 pub use crate::errors::VectorDbError;
 pub use crate::index::SearchResult;
@@ -168,6 +169,36 @@ mod tests {
     }
 
     #[test]
+    fn cosine_metric_prioritizes_similar_vectors() {
+        let dir = temp_dir("cosine_metric");
+        let mut db = VectorDatabase::open(&dir).unwrap();
+        db.create_collection_with_metric("vectors", 2, DistanceMetric::Cosine)
+            .unwrap();
+        db.insert("vectors", 1, vec![1.0, 0.0]).unwrap();
+        db.insert("vectors", 2, vec![0.0, 1.0]).unwrap();
+
+        let results = db.search("vectors", &[1.0, 0.0], 1).unwrap();
+        assert_eq!(results[0].id, 1);
+        drop(db);
+        cleanup_dir(dir);
+    }
+
+    #[test]
+    fn dot_metric_prioritizes_larger_dot_products() {
+        let dir = temp_dir("dot_metric");
+        let mut db = VectorDatabase::open(&dir).unwrap();
+        db.create_collection_with_metric("vectors", 2, DistanceMetric::Dot)
+            .unwrap();
+        db.insert("vectors", 1, vec![1.0, 0.0]).unwrap();
+        db.insert("vectors", 2, vec![0.5, 0.5]).unwrap();
+
+        let results = db.search("vectors", &[1.0, 0.0], 1).unwrap();
+        assert_eq!(results[0].id, 1);
+        drop(db);
+        cleanup_dir(dir);
+    }
+
+    #[test]
     fn search_with_nan_vector_fails() {
         let dir = temp_dir("nan_query");
         let mut db = VectorDatabase::open(&dir).unwrap();
@@ -238,7 +269,8 @@ mod tests {
             db.insert("docs", 1, vec![0.0, 0.0]).unwrap();
         }
 
-        let mut collection = Collection::new("docs".into(), 2).unwrap();
+        let mut collection =
+            Collection::with_metric("docs".into(), 2, DistanceMetric::Euclidean).unwrap();
         collection.insert(1, vec![0.0, 0.0]).unwrap();
         collection.insert(2, vec![0.5, 0.5]).unwrap();
 

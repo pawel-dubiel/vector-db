@@ -1,3 +1,4 @@
+use crate::distance::DistanceMetric;
 use crate::embedding::{Embedding, Metadata, VectorId};
 use crate::errors::VectorDbError;
 use crate::index::{FlatIndex, SearchResult};
@@ -9,10 +10,14 @@ pub struct Collection {
 }
 
 impl Collection {
-    pub(crate) fn new(name: String, dimension: usize) -> Result<Self, VectorDbError> {
+    pub(crate) fn with_metric(
+        name: String,
+        dimension: usize,
+        metric: DistanceMetric,
+    ) -> Result<Self, VectorDbError> {
         Ok(Self {
             name,
-            index: FlatIndex::new(dimension)?,
+            index: FlatIndex::new(dimension, metric)?,
         })
     }
 
@@ -30,6 +35,10 @@ impl Collection {
 
     pub fn dimension(&self) -> usize {
         self.index.dimension()
+    }
+
+    pub fn metric(&self) -> DistanceMetric {
+        self.index.metric()
     }
 
     pub fn insert(&mut self, id: VectorId, vector: Vec<f32>) -> Result<(), VectorDbError> {
