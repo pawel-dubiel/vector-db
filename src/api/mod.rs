@@ -101,12 +101,17 @@ async fn create_collection(
     Json(payload): Json<CollectionCreateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let mut db = state.db.write().await;
-    let CollectionCreateRequest { name, dimension } = payload;
-    db.create_collection(name.clone(), dimension)
+    let CollectionCreateRequest {
+        name,
+        dimension,
+        metric,
+    } = payload;
+    let metric = metric.unwrap_or(crate::distance::DistanceMetric::Euclidean);
+    db.create_collection_with_metric(name.clone(), dimension, metric)
         .map_err(map_error)?;
     Ok((
         StatusCode::CREATED,
-        Json(CollectionResponse::new(name, dimension, 0)),
+        Json(CollectionResponse::new(name, dimension, metric, 0)),
     ))
 }
 
